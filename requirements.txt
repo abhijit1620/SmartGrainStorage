@@ -1,0 +1,6 @@
+adafruit-circuitpython-dht
+pyserial
+firebase-admin
+matplotlib
+pandas
+requests
