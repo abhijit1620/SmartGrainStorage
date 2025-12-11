@@ -1,19 +1,47 @@
+import os
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import pickle
 
-data = {
-    "timestamp": [
-        "2025-12-08 08:00:00","2025-12-08 08:10:00","2025-12-08 08:20:00","2025-12-08 08:30:00",
-        "2025-12-08 08:40:00","2025-12-08 08:50:00","2025-12-08 09:00:00","2025-12-08 09:10:00",
-        "2025-12-08 09:20:00","2025-12-08 09:30:00","2025-12-08 09:40:00","2025-12-08 09:50:00",
-        "2025-12-08 10:00:00","2025-12-08 10:10:00","2025-12-08 10:20:00","2025-12-08 10:30:00",
-        "2025-12-08 10:40:00","2025-12-08 10:50:00","2025-12-08 11:00:00","2025-12-08 11:10:00"
-    ],
-    "temp": [24.5,25.0,25.2,25.5,26.0,26.5,27.0,27.5,28.0,28.5,29.0,29.5,30.0,30.5,31.0,31.5,32.0,32.5,33.0,33.5],
-    "hum": [58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77],
-    "co2": [350,360,370,380,390,400,410,420,430,440,450,460,470,480,490,500,510,520,530,540],
-    "ammonia": [0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7]
-}
+# ------------ LOAD CSV -------------
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+CSV_PATH = os.path.join(BASE_DIR, "Dataset", "grain_storage.csv")
 
-df = pd.DataFrame(data)
-df.to_csv("grain_storage_data.csv", index=False)
-print("CSV file created successfully!")
+print("Loading CSV:", CSV_PATH)
+df = pd.read_csv(CSV_PATH)
+
+print("Columns:", df.columns.tolist())
+print(df.head())
+
+# ----------- CREATE LABEL -----------
+def label_status(row):
+    if row['hum'] > 70 or row['temp'] > 30 or row['co2'] > 500 or row['ammonia'] > 2:
+        return "Spoilage"
+    elif row['hum'] > 60 or row['temp'] > 28:
+        return "Risk"
+    else:
+        return "Safe"
+
+df["status"] = df.apply(label_status, axis=1)
+
+# ------------ FEATURES & TARGET -------------
+X = df[["temp", "hum", "co2", "ammonia"]]
+y = df["status"]
+
+# ------------ SPLIT & TRAIN --------------
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = RandomForestClassifier(n_estimators=200, random_state=42)
+model.fit(X_train, y_train)
+
+accuracy = accuracy_score(y_test, model.predict(X_test))
+print("\nModel Accuracy:", accuracy)
+
+# ------------ SAVE MODEL -------------
+MODEL_PATH = os.path.join(BASE_DIR, "model.pkl")
+with open(MODEL_PATH, "wb") as f:
+    pickle.dump(model, f)
+
+print("Model saved at:", MODEL_PATH)

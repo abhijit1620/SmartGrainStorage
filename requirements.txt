@@ -4,3 +4,8 @@ firebase-admin
 matplotlib
 pandas
 requests
+streamlit
+pandas
+requests
+pyserial
+scikit-learn
