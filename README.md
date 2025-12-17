@@ -20,5 +20,3 @@ pio run -t upload
 
 
 
-cd ~/Desktop/SmartGrainStorage
-python -m iot.main
