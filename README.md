@@ -1,8 +1,4 @@
 
----
-
-### How to Run (2 Minutes Setup)
-
 ```bash
 # 1. Clone or download this project
 cd SmartGrainStorage
@@ -15,3 +11,14 @@ python -m iot.main
 
 # 4. Terminal 2 — Launch the beautiful dashboard
 streamlit run dashboard/visualize.py
+
+
+
+
+cd ~/Desktop/SmartGrainStorage/iot/esp32
+pio run -t upload
+
+
+
+cd ~/Desktop/SmartGrainStorage
+python -m iot.main

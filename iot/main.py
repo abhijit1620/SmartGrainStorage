@@ -1,82 +1,61 @@
-# iot/main.py  ← FINAL PRODUCTION VERSION (copy-paste kar do pura)
-
-import time
-import csv
-import pickle
+from flask import Flask, request, jsonify
+import pandas as pd
+from datetime import datetime
 from pathlib import Path
-import pandas as pd  # ← YE LINE ADD KARO
 
-# Relative import (package mode ke liye)
-from .sensors import read_temperature, read_humidity, read_co2, read_ammonia
+app = Flask(__name__)
 
-# Paths
-BASE_DIR = Path(__file__).parent.parent
-CSV_FILE = BASE_DIR / "Dataset" / "grain_storage_live.csv"
-MODEL_PATH = BASE_DIR / "model.pkl"
+BASE = Path(__file__).parent.parent
+CSV_PATH = BASE / "Dataset" / "grain_storage_live.csv"
 
-# Load model
-print("Loading AI model from:", MODEL_PATH)
-with open(MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
-print("Model loaded successfully!\n")
+CSV_PATH.parent.mkdir(exist_ok=True)
 
-# CSV setup
-def setup_csv():
-    CSV_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if not CSV_FILE.exists():
-        with open(CSV_FILE, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["timestamp", "temp", "hum", "co2", "ammonia", "status", "confidence"])
+# CSV create if not exists
+if not CSV_PATH.exists():
+    df = pd.DataFrame(columns=[
+        "timestamp","temp","hum","co2","ammonia","status","confidence"
+    ])
+    df.to_csv(CSV_PATH, index=False)
 
-setup_csv()
+def classify(temp, hum, co2, ammonia):
+    # 🔥 Simple AI logic (can upgrade later)
+    if hum > 70 or ammonia > 1:
+        return "Spoilage", 0.95
+    elif hum > 60:
+        return "Risk", 0.75
+    else:
+        return "Safe", 0.40
 
-# PREDICTION FUNCTION — WARNING-FREE VERSION
-def predict_status(temp, hum, co2, ammonia):
-    X = pd.DataFrame([[temp, hum, co2, ammonia]], 
-                     columns=["temp", "hum", "co2", "ammonia"])
-    pred = model.predict(X)[0]
-    conf = model.predict_proba(X)[0].max()
-    return pred, conf
+@app.route("/data", methods=["POST"])
+def receive_data():
+    data = request.json
 
-# Main loop
-print("Smart Grain Storage System STARTED")
-print("="*50)
+    temp = float(data["temp"])
+    hum = float(data["hum"])
+    co2 = float(data["co2"])
+    ammonia = float(data["ammonia"])
 
-while True:
-    try:
-        temp = read_temperature()
-        hum = read_humidity()
-        co2 = read_co2()
-        ammonia = read_ammonia()
+    status, confidence = classify(temp, hum, co2, ammonia)
 
-        status, confidence = predict_status(temp, hum, co2, ammonia)
+    row = {
+        "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+        "temp": temp,
+        "hum": hum,
+        "co2": co2,
+        "ammonia": ammonia,
+        "status": status,
+        "confidence": confidence
+    }
 
-        print(f"Temp: {temp:5.1f}°C | Hum: {hum:5.1f}% | CO₂: {co2:5.1f} ppm | NH₃: {ammonia:5.2f}")
-        print(f"Status: {status:9} | Confidence: {confidence:.1%}")
+    df = pd.read_csv(CSV_PATH)
+    df.loc[len(df)] = row
+    df.to_csv(CSV_PATH, index=False)
 
-        if status in ["Spoilage", "DANGER"]:
-            print("ALERT! SPOILAGE DETECTED → Fan ON | Buzzer ON | Ventilation Activated!\n")
-        else:
-            print("System SAFE\n")
+    return jsonify({"message": "Data received"}), 200
 
-        # Log to CSV
-        with open(CSV_FILE, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                time.strftime("%Y-%m-%d %H:%M:%S"),
-                round(temp, 2),
-                round(hum, 2),
-                round(co2, 2),
-                round(ammonia, 2),
-                status,
-                f"{confidence:.4f}"
-            ])
+@app.route("/")
+def home():
+    return "Smart Grain Storage API Running"
 
-        time.sleep(5)
-
-    except KeyboardInterrupt:
-        print("\nSystem stopped by user. Bye!")
-        break
-    except Exception as e:
-        print("Error:", e)
-        time.sleep(5)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5050)
